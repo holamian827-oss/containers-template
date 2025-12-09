@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 圖片識別</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-area {
+            text-align: center;
+            padding: 40px;
+            border: 3px dashed #e0e0e0;
+            border-radius: 15px;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+        }
+
+        .upload-area.active {
+            border-color: #667eea;
+            background: #f5f5ff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #999;
+        }
+
+        #webcam-container {
+            display: none;
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #webcam-container canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 16px;
+            color: #666;
+        }
+
+        #label-container {
+            display: none;
+        }
+
+        #label-container.active {
+            display: block;
+        }
+
+        .prediction-item {
+            margin-bottom: 20px;
+        }
+
+        .prediction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .prediction-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .prediction-score {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .progress-bar {
+            height: 12px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.8s ease;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #f5f5ff;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .image-preview {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .image-preview.active {
+            display: block;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        #file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI 圖片識別</h1>
+            <p>使用 Teachable Machine 訓練的模型</p>
+        </div>
+
+        <div class="card">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📷</div>
+                <div class="upload-text">點擊上傳圖片</div>
+                <div class="upload-hint">支援 JPG、PNG 格式</div>
+            </div>
+
+            <input type="file" id="file-input" accept="image/*">
+            
+            <img id="image-preview" class="image-preview">
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div class="loading-text">正在分析圖片...</div>
+            </div>
+
+            <div id="webcam-container"></div>
+            
+            <div id="label-container"></div>
+
+            <div class="error-message" id="error-message"></div>
+
+            <div class="button-group">
+                <button class="btn-primary" id="predict-btn" style="display: none;">開始識別</button>
+                <button class="btn-secondary" id="reset-btn" style="display: none;">重新選擇</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            💡 模型由 Teachable Machine 訓練
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    
+    <script>
+        // 您的 Teachable Machine 模型 URL
+        const URL = "https://teachablemachine.withgoogle.com/models/O1QeYe-IL/";
+
+        let model, maxPredictions;
+        let currentImage = null;
+
+        // DOM 元素
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const imagePreview = document.getElementById('image-preview');
+        const loading = document.getElementById('loading');
+        const labelContainer = document.getElementById('label-container');
+        const predictBtn = document.getElementById('predict-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const errorMessage = document.getElementById('error-message');
+
+        // 載入模型
+        async function loadModel() {
+            try {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+                
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+                
+                console.log('模型載入成功！');
+            } catch (error) {
+                console.error('模型載入失敗:', error);
+                showError('模型載入失敗，請重新整理頁面重試');
+            }
+        }
+
+        // 頁面載入時初始化
+        window.onload = function() {
+            loadModel();
+        };
+
+        // 點擊上傳區域
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // 檔案選擇
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    currentImage = event.target.result;
+                    imagePreview.src = currentImage;
+                    imagePreview.classList.add('active');
+                    uploadArea.style.display = 'none';
+                    predictBtn.style.display = 'block';
+                    resetBtn.style.display = 'block';
+                    labelContainer.classList.remove('active');
+                    labelContainer.innerHTML = '';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 拖曳上傳
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    currentImage = event.target.result;
+                    imagePreview.src = currentImage;
+                    imagePreview.classList.add('active');
+                    uploadArea.style.display = 'none';
+                    predictBtn.style.display = 'block';
+                    resetBtn.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 開始識別
+        predictBtn.addEventListener('click', async () => {
+            if (!model) {
+                showError('模型還未載入完成，請稍候');
+                return;
+            }
+
+            loading.classList.add('active');
+            predictBtn.disabled = true;
+            errorMessage.classList.remove('active');
+
+            try {
+                // 建立臨時圖片元素
+                const img = new Image();
+                img.src = currentImage;
+                
+                await new Promise((resolve) => {
+                    img.onload = resolve;
+                });
+
+                // 預測
+                const prediction = await model.predict(img);
+                
+                // 排序結果
+                prediction.sort((a, b) => b.probability - a.probability);
+                
+                // 顯示結果
+                displayResults(prediction);
+                
+            } catch (error) {
+                console.error('識別失敗:', error);
+                showError('識別失敗，請重試');
+            } finally {
+                loading.classList.remove('active');
+                predictBtn.disabled = false;
+            }
+        });
+
+        // 顯示結果
+        function displayResults(predictions) {
+            labelContainer.innerHTML = '';
+            labelContainer.classList.add('active');
+            
+            predictions.forEach(pred => {
+                const percentage = (pred.probability * 100).toFixed(1);
+                
+                const item = document.createElement('div');
+                item.className = 'prediction-item';
+                item.innerHTML = `
+                    <div class="prediction-header">
+                        <span class="prediction-name">${pred.className}</span>
+                        <span class="prediction-score">${percentage}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${percentage}%"></div>
+                    </div>
+                `;
+                
+                labelContainer.appendChild(item);
+            });
+
+            // 通知小程式（如果在 webview 中）
+            if (window.wx && window.wx.miniProgram) {
+                wx.miniProgram.postMessage({
+                    data: {
+                        type: 'prediction',
+                        results: predictions
+                    }
+                });
+            }
+        }
+
+        // 重置
+        resetBtn.addEventListener('click', () => {
+            currentImage = null;
+            imagePreview.src = '';
+            imagePreview.classList.remove('active');
+            uploadArea.style.display = 'block';
+            predictBtn.style.display = 'none';
+            resetBtn.style.display = 'none';
+            labelContainer.classList.remove('active');
+            labelContainer.innerHTML = '';
+            errorMessage.classList.remove('active');
+            fileInput.value = '';
+        });
+
+        // 顯示錯誤
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+    </script>
+</body>
+</html>
